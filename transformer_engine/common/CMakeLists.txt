@@ -28,7 +28,7 @@ endif()
 # Process GPU architectures
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL 13.0)
-    set(CMAKE_CUDA_ARCHITECTURES 75 80 89 90 100 120 121)
+    set(CMAKE_CUDA_ARCHITECTURES 75 80 89 90 100 103 110 120 121)
   elseif (CUDAToolkit_VERSION VERSION_GREATER_EQUAL 12.9)
     # SM_121 (GB10 consumer Blackwell) placed under >= 12.9; lower bound to be confirmed.
     set(CMAKE_CUDA_ARCHITECTURES 70 80 89 90 100 120 121)
@@ -47,56 +47,97 @@ set(NVTE_STANDARD_ARCHS)
 set(NVTE_GENERIC_ARCHS)
 set(NVTE_SPECIFIC_ARCHS)
 
+function(nvte_list_append_unique list_name)
+  foreach(item IN LISTS ARGN)
+    list(FIND ${list_name} "${item}" item_index)
+    if(item_index EQUAL -1)
+      list(APPEND ${list_name} "${item}")
+    endif()
+  endforeach()
+  set(${list_name} "${${list_name}}" PARENT_SCOPE)
+endfunction()
+
 # Check for architecture 100
 list(FIND CMAKE_CUDA_ARCHITECTURES "100" arch_100_index)
 if(NOT arch_100_index EQUAL -1)
   list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "100")
-  list(APPEND NVTE_GENERIC_ARCHS "100")
-  list(APPEND NVTE_SPECIFIC_ARCHS "100a")
+  nvte_list_append_unique(NVTE_GENERIC_ARCHS "100")
+  nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "100a")
   if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 12.9)
-    list(APPEND NVTE_SPECIFIC_ARCHS "103a")
+    nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "103a")
   endif()
+endif()
+
+# Check for architecture 103
+list(FIND CMAKE_CUDA_ARCHITECTURES "103" arch_103_index)
+if(NOT arch_103_index EQUAL -1)
+  list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "103")
+  nvte_list_append_unique(NVTE_GENERIC_ARCHS "103")
+  nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "103a")
 endif()
 
 # Check for architecture 101 (if we see this we are in toolkit <= 12.9)
 list(FIND CMAKE_CUDA_ARCHITECTURES "101" arch_101_index)
 if(NOT arch_101_index EQUAL -1)
   list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "101")
-  list(APPEND NVTE_GENERIC_ARCHS "101")
-  list(APPEND NVTE_SPECIFIC_ARCHS "101a")
+  nvte_list_append_unique(NVTE_GENERIC_ARCHS "101")
+  nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "101a")
 endif()
 
 # Check for architecture 110 (if we see this we are in toolkit >= 13.0)
 list(FIND CMAKE_CUDA_ARCHITECTURES "110" arch_110_index)
 if(NOT arch_110_index EQUAL -1)
   list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "110")
-  list(APPEND NVTE_GENERIC_ARCHS "110")
-  list(APPEND NVTE_SPECIFIC_ARCHS "110f")
+  nvte_list_append_unique(NVTE_GENERIC_ARCHS "110")
+  nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "110f")
 endif()
 
 # Check for architecture 120
 list(FIND CMAKE_CUDA_ARCHITECTURES "120" arch_120_index)
 if(NOT arch_120_index EQUAL -1)
   list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "120")
-  list(APPEND NVTE_GENERIC_ARCHS "120")
+  nvte_list_append_unique(NVTE_GENERIC_ARCHS "120")
   if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 12.9)
-    list(APPEND NVTE_SPECIFIC_ARCHS "120f")
+    nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "120f")
   else()
-    list(APPEND NVTE_SPECIFIC_ARCHS "120a")
+    nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "120a")
   endif()
 endif()
 
-# Check for architecture 121 (GB10 consumer Blackwell / DGX Spark)
+# Check for architecture 121
 list(FIND CMAKE_CUDA_ARCHITECTURES "121" arch_121_index)
 if(NOT arch_121_index EQUAL -1)
   list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "121")
-  list(APPEND NVTE_GENERIC_ARCHS "121")
-  if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 12.9)
-    list(APPEND NVTE_SPECIFIC_ARCHS "121f")
+  nvte_list_append_unique(NVTE_GENERIC_ARCHS "121")
+  if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 13.0)
+    nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "121f" "121a")
+  elseif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 12.9)
+    nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "121f")
   else()
-    list(APPEND NVTE_SPECIFIC_ARCHS "121a")
+    nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "121a")
   endif()
 endif()
+
+# Move explicit Blackwell-specific targets (e.g. NVTE_CUDA_ARCHS=121a) out of
+# the standard list so they are not applied to generic CUDA sources. Add the
+# matching generic family head for CUDA sources that do not use arch-specific
+# Blackwell PTX/SASS features.
+set(NVTE_SPECIFIC_TO_GENERIC_ARCHS
+    100f 100 100a 100
+    101f 101 101a 101
+    103f 103 103a 103
+    110f 110 110a 110
+    120f 120 120a 120
+    121f 121 121a 121)
+while(NVTE_SPECIFIC_TO_GENERIC_ARCHS)
+  list(POP_FRONT NVTE_SPECIFIC_TO_GENERIC_ARCHS arch generic_arch)
+  list(FIND CMAKE_CUDA_ARCHITECTURES "${arch}" arch_specific_index)
+  if(NOT arch_specific_index EQUAL -1)
+    list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "${arch}")
+    nvte_list_append_unique(NVTE_GENERIC_ARCHS "${generic_arch}")
+    nvte_list_append_unique(NVTE_SPECIFIC_ARCHS "${arch}")
+  endif()
+endwhile()
 
 # Move remaining standard (pre-Blackwell) architectures into NVTE_STANDARD_ARCHS.
 # These are applied to all CUDA sources (both generic and arch-specific).

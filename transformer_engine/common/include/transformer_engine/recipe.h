@@ -292,6 +292,28 @@ void nvte_mxfp8_scaling_partial_cast(const NVTETensor input, NVTETensor output_r
                                      const NVTETensor scale_inv_colwise, int rows, int cols,
                                      size_t start_offset, cudaStream_t stream);
 
+/*! \brief Cast and transpose an input tensor into MXFP8 row-wise storage.
+ *
+ *  Consumes a high-precision tensor and the compact column-wise E8M0 scales
+ *  already computed for that source tensor. Emits row-wise MXFP8 payload and
+ *  scale-inverse storage for the logical transpose of the source.
+ *
+ *  Output dtype is E4M3 and scales are written in compact (non-swizzled)
+ *  layout. For E5M2 output or GEMM-swizzled scales use the _v2 variant.
+ */
+void nvte_mxfp8_scaling_transpose_cast(const NVTETensor input, const NVTETensor scale_inv_colwise,
+                                       NVTETensor output_rowwise,
+                                       NVTETensor output_rowwise_scale_inv, int rows, int cols,
+                                       cudaStream_t stream);
+
+/*! \brief Extended variant of nvte_mxfp8_scaling_transpose_cast. */
+void nvte_mxfp8_scaling_transpose_cast_v2(const NVTETensor input,
+                                          const NVTETensor scale_inv_colwise,
+                                          NVTETensor output_rowwise,
+                                          NVTETensor output_rowwise_scale_inv, int rows, int cols,
+                                          NVTEDType fp8_dtype, bool with_gemm_swizzled_scales,
+                                          cudaStream_t stream);
+
 /*! \brief Compute per-tensor scaling factor for NVFP4 format.
  *
  *  This function computes the scaling factor (alpha) for NVFP4 quantization based
