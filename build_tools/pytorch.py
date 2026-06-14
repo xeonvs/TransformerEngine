@@ -57,6 +57,14 @@ def setup_pytorch_extension(
             csrc_header_files,
         ]
     )
+    try:
+        cudnn_include = metadata.distribution(f"nvidia-cudnn-cu{cuda_version()[0]}").locate_file(
+            "nvidia/cudnn/include"
+        )
+    except metadata.PackageNotFoundError:
+        cudnn_include = None
+    if cudnn_include is not None and (cudnn_include / "cudnn.h").is_file():
+        include_dirs.append(cudnn_include)
 
     # Compiler flags
     cxx_flags = ["-O3", "-fvisibility=hidden"]
