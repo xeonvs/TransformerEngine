@@ -13,6 +13,7 @@ import torch
 from ...cpu_offload import is_cpu_offload_enabled, mark_activation_offload
 from ...quantization import FP8GlobalStateManager
 from ...tensor import Quantizer
+from ...utils import get_effective_nvfp4_backward_override
 from ..basic import AddExtraInput, BasicLinear, Bias
 from ..op import FusedOperation, FusibleOperation, OperationContext
 
@@ -87,7 +88,10 @@ class ForwardLinearBiasAdd(FusedOperation):
         grad_input_quantizer = prev_op_grad_output_quantizer
         with_quantized_compute = FP8GlobalStateManager.is_fp8_enabled()
         if with_quantized_compute:
-            backward_override = FP8GlobalStateManager.get_fp8_recipe().backward_override
+            fp8_recipe = FP8GlobalStateManager.get_fp8_recipe()
+            backward_override = get_effective_nvfp4_backward_override(
+                fp8_recipe, fp8_recipe.backward_override
+            )
         else:
             backward_override = None
 

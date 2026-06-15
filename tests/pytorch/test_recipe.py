@@ -30,6 +30,7 @@ from transformer_engine.pytorch.quantization import (
     _amax_and_scale_update,
 )
 import transformer_engine.pytorch.ops as te_ops
+import transformer_engine.pytorch.utils as te_utils
 from transformer_engine.common.recipe import (
     DelayedScaling,
     Float8BlockScaling,
@@ -643,6 +644,30 @@ def test_nvfp4_row_scaled_quantizer_roles(
         True,
         True,
     ]
+
+
+def test_nvfp4_sm121_compat_defaults(monkeypatch):
+    """SM121 defaults avoid unsupported FP4 stochastic rounding and native NVFP4 wgrad."""
+    monkeypatch.delenv("NVTE_NVFP4_DISABLE_STOCHASTIC_ROUNDING", raising=False)
+    monkeypatch.setenv("NVTE_NVFP4_SM121_COMPAT", "1")
+    monkeypatch.setattr(
+        transformer_engine.common.recipe,
+        "_nvfp4_sm121_compat_enabled",
+        lambda: True,
+    )
+    monkeypatch.setattr(te_utils, "nvfp4_sm121_compat_enabled", lambda: True)
+
+    nvfp4_recipe = NVFP4BlockScaling()
+
+    assert nvfp4_recipe.disable_stochastic_rounding
+    assert nvfp4_recipe.fp4_quant_bwd_grad.stochastic_rounding is False
+    assert (
+        te_utils.get_effective_nvfp4_backward_override(nvfp4_recipe, nvfp4_recipe.backward_override)
+        == "dequantized"
+    )
+    assert te_utils.get_effective_nvfp4_backward_override(nvfp4_recipe, "high_precision") == (
+        "high_precision"
+    )
 
 
 @pytest.mark.skipif(not fp4_available, reason=reason_for_no_fp4)

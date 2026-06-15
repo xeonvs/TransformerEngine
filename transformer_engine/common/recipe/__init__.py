@@ -17,6 +17,20 @@ _NVFP4_4OVER6_SCOPES = ("none", "weights", "activations", "all")
 _NVFP4_4OVER6_ERR_MODES = ("MAE", "MSE")
 
 
+def _nvfp4_sm121_compat_enabled() -> bool:
+    """Whether GB10/SM121 NVFP4 compatibility defaults should be applied."""
+    if os.getenv("NVTE_NVFP4_SM121_COMPAT", "1") == "0":
+        return False
+    try:
+        import torch  # pylint: disable=import-outside-toplevel
+
+        if not torch.cuda.is_available():
+            return False
+        return torch.cuda.get_device_capability() == (12, 1)
+    except Exception:  # pragma: no cover - best-effort optional torch probe
+        return False
+
+
 class _FormatHelper(NamedTuple):
     """
     Stores max FP8 values for fprop and bprop a `Format`.
@@ -578,6 +592,12 @@ class NVFP4BlockScaling(Recipe):
         assert (
             self.nvfp4_4over6_err_mode in _NVFP4_4OVER6_ERR_MODES
         ), "NVTE_NVFP4_4OVER6_ERR_MODE must be one of: 'MAE', 'MSE'."
+
+        if (
+            _nvfp4_sm121_compat_enabled()
+            and "NVTE_NVFP4_DISABLE_STOCHASTIC_ROUNDING" not in os.environ
+        ):
+            self.disable_stochastic_rounding = True
 
         # Quantization params
         # Note: RHT is currently only applied to column-wise usage so that

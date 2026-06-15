@@ -33,6 +33,7 @@ from ...utils import (
     canonicalize_dtype,
     clear_tensor_data,
     devices_match,
+    get_effective_nvfp4_backward_override,
 )
 from ..op import BasicOperation, OperationContext
 from .._common import (
@@ -351,7 +352,13 @@ class BasicLinear(BasicOperation):
             # Configure quantizer usages
             weight_requires_grad = requires_grad and self.weight.requires_grad
             columnwise_usage = weight_requires_grad
-            if FP8GlobalStateManager.get_fp8_recipe().backward_override is not None:
+            fp8_recipe = FP8GlobalStateManager.get_fp8_recipe()
+            if (
+                get_effective_nvfp4_backward_override(
+                    fp8_recipe, fp8_recipe.backward_override
+                )
+                is not None
+            ):
                 columnwise_usage = False
             input_quantizer = self.get_quantizer("forward", 0)
             weight_quantizer = self.get_quantizer("forward", 1)
@@ -1014,7 +1021,10 @@ class BasicLinear(BasicOperation):
         grad_input_quantizer = prev_op_grad_output_quantizer
         with_quantized_compute = FP8GlobalStateManager.is_fp8_enabled()
         if with_quantized_compute:
-            backward_override = FP8GlobalStateManager.get_fp8_recipe().backward_override
+            fp8_recipe = FP8GlobalStateManager.get_fp8_recipe()
+            backward_override = get_effective_nvfp4_backward_override(
+                fp8_recipe, fp8_recipe.backward_override
+            )
         else:
             backward_override = None
 

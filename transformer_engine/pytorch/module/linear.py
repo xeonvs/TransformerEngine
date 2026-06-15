@@ -41,6 +41,7 @@ from ..utils import (
     nvtx_range_pop,
     nvtx_range_push,
     get_nvtx_range_context,
+    get_effective_nvfp4_backward_override,
 )
 from ..distributed import (
     set_tensor_model_parallel_attributes,
@@ -1862,7 +1863,10 @@ class Linear(TransformerEngineBaseModule):
             )
 
             if self.fp8:
-                backward_override = FP8GlobalStateManager.get_fp8_recipe().backward_override
+                fp8_recipe = FP8GlobalStateManager.get_fp8_recipe()
+                backward_override = get_effective_nvfp4_backward_override(
+                    fp8_recipe, fp8_recipe.backward_override
+                )
             else:
                 backward_override = None
             custom = is_custom(input_quantizer) or is_custom(weight_quantizer)

@@ -43,6 +43,7 @@ from ..utils import (
     requires_grad,
     needs_quantized_gemm,
     get_nvtx_range_context,
+    get_effective_nvfp4_backward_override,
 )
 from ..distributed import (
     set_tensor_model_parallel_attributes,
@@ -147,7 +148,10 @@ class _LayerNormLinear(torch.autograd.Function):
             is_fsdp2,
         ) = non_tensor_args
         if fp8:
-            backward_override = FP8GlobalStateManager.get_fp8_recipe().backward_override
+            fp8_recipe = FP8GlobalStateManager.get_fp8_recipe()
+            backward_override = get_effective_nvfp4_backward_override(
+                fp8_recipe, fp8_recipe.backward_override
+            )
         else:
             backward_override = None
 

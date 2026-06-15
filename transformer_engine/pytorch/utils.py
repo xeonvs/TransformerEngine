@@ -21,6 +21,8 @@ __all__ = [
     "get_device_compute_capability",
     "get_cudnn_version",
     "is_bf16_available",
+    "nvfp4_sm121_compat_enabled",
+    "get_effective_nvfp4_backward_override",
     "deinterleave_glu_tensor",
     "interleave_glu_tensor",
 ]
@@ -86,6 +88,30 @@ def _get_device_compute_capability(device: torch.device) -> Tuple[int, int]:
 def get_device_compute_capability() -> Tuple[int, int]:
     """CUDA compute capability of current GPU"""
     return _get_device_compute_capability(torch.cuda.current_device())
+
+
+def nvfp4_sm121_compat_enabled() -> bool:
+    """Whether GB10/SM121 NVFP4 compatibility fallbacks should be applied."""
+    if os.getenv("NVTE_NVFP4_SM121_COMPAT", "1") == "0":
+        return False
+    if not torch.cuda.is_available():
+        return False
+    try:
+        return get_device_compute_capability() == (12, 1)
+    except Exception:  # pragma: no cover - defensive CUDA probe
+        return False
+
+
+def get_effective_nvfp4_backward_override(
+    recipe: Any, backward_override: Optional[str]
+) -> Optional[str]:
+    """Apply the SM121 NVFP4 backward override unless the user selected one."""
+    if backward_override is not None or not nvfp4_sm121_compat_enabled():
+        return backward_override
+    recipe_is_nvfp4 = recipe is not None and getattr(recipe, "nvfp4", lambda: False)()
+    if recipe_is_nvfp4:
+        return "dequantized"
+    return backward_override
 
 
 def deinterleave_glu_tensor(tensor: torch.Tensor, interleave_size: int) -> torch.Tensor:

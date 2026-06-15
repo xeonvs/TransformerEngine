@@ -35,6 +35,7 @@ from ..utils import (
     cast_if_needed,
     clear_tensor_data,
     get_device_compute_capability,
+    get_effective_nvfp4_backward_override,
     init_method_constant,
     requires_grad,
     resolve_grouped_linear_single_param_flags,
@@ -415,7 +416,10 @@ class _GroupedLinear(torch.autograd.Function):
             debug,
         ) = non_tensor_args
         if fp8:
-            backward_override = FP8GlobalStateManager.get_fp8_recipe().backward_override
+            fp8_recipe = FP8GlobalStateManager.get_fp8_recipe()
+            backward_override = get_effective_nvfp4_backward_override(
+                fp8_recipe, fp8_recipe.backward_override
+            )
         else:
             backward_override = None
         if backward_override == "high_precision":
